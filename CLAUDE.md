@@ -2,9 +2,9 @@
 
 ## Project Context
 Real-time multimodal AI companion for elderly care (the client trial project).
-Evaluator is non-technical, based in Dallas, Windows machine.
-Deadline: 6pm CST April 13. Must work without developer involvement during setup and testing.
-Will be evaluated by both the evaluator and the client's team.
+Evaluator is non-technical, Windows machine.
+Must work without developer involvement during setup and testing.
+Will be evaluated by the client team.
 
 ## Stack (non-negotiable)
 - Backend: FastAPI (Python)
@@ -50,7 +50,8 @@ NOT acceptable:
 - Status indicator: listening / thinking / speaking
 - Correction flow: system confirms interpretation, user can say "no that's wrong"
 - Small talk capability
-- Simple, large, readable UI — dark mode, Gemini-Live-inspired layout
+- client brand UI — 16:9 rounded rectangle hero with amber glow, warm palette, light/dark mode toggle
+- Playfair Display (serif) headings + Inter (sans-serif) body to match the client's site
 - Privacy notice displayed in UI
 - Fall detection alert banner (red, auto-hides after 20s)
 
