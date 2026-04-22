@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
 # ============================================================
-#  Ava Companion — Mac / Linux launcher (native Python)
+#  Ava Companion — Mac / Linux launcher (zero-config, native Python)
 #  Run with:  bash start.sh   (or chmod +x start.sh && ./start.sh)
 # ============================================================
-#  Why not Docker: motorized pan/tilt on Logitech MeetUp needs
-#  Windows DirectShow access, which Docker on Windows can't
-#  reach without admin-only USB/IP setup (usbipd-win). To keep
-#  the launcher a true double-click across platforms, we run
-#  the backend natively. See DESIGN-NOTES.md D82 for full
-#  rationale. Note: PTZ only activates on Windows + MeetUp;
-#  on Mac/Linux the rest of the system works identically.
+#  First-run UX bar (from the brief):
+#    - no terminal commands (beyond the one that runs this script)
+#    - no manual dependency install
+#    - no package-manager setup where possible
+#
+#  If Python 3.12+ is missing on macOS, we download the official
+#  Apple Installer .pkg from python.org and open it via the
+#  Installer GUI. The user clicks Continue a few times and enters
+#  their admin password once; the installer handles everything
+#  else. We then continue automatically.
+#
+#  On Linux there is no generic silent-install path across distros
+#  (apt / dnf / pacman all need sudo), so we fall back to clear
+#  per-distro install instructions. For most modern Linux installs
+#  Python 3.12 is already present.
+#
+#  Why not Docker: WSL2 can't reach DirectShow for PTZ on Windows,
+#  so we dropped Docker for cross-platform consistency. See
+#  DESIGN-NOTES.md D82. Why this specific install flow: D100.
 # ============================================================
 set -e
 
@@ -21,24 +33,68 @@ echo
 # --- 1. Move to this script's folder so relative paths work ---
 cd "$(dirname "$0")"
 
-# --- 2. Verify Python 3.12+ ---
-if ! command -v python3 >/dev/null 2>&1; then
-    echo " ERROR: python3 is not on PATH."
-    echo
-    echo " Please install Python 3.12 or newer:"
-    echo "   - macOS:  brew install python@3.12   (or https://www.python.org/downloads/)"
-    echo "   - Linux:  sudo apt install python3.12 python3.12-venv   (Debian/Ubuntu)"
-    echo
-    exit 1
+# --- 2. Resolve a usable Python 3.12+ ---
+have_python_312() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)' 2>/dev/null
+}
+
+PYTHON_BIN=""
+if have_python_312; then
+    PYTHON_BIN="python3"
+else
+    OS="$(uname -s)"
+    if [ "$OS" = "Darwin" ]; then
+        # macOS — download the official .pkg and open the GUI installer.
+        # One admin-password prompt; no terminal config.
+        PKG_URL="https://www.python.org/ftp/python/3.12.7/python-3.12.7-macos11.pkg"
+        PKG_PATH="/tmp/ava-python-3.12.7.pkg"
+        echo " No Python 3.12+ detected. Downloading the official installer..."
+        echo " (one-time, ~45 MB; the Apple Installer will open when ready)"
+        echo
+        if ! curl --fail --location --silent --show-error -o "$PKG_PATH" "$PKG_URL"; then
+            echo
+            echo " ERROR: could not download Python installer."
+            echo " Check your internet connection, then re-run this file."
+            echo " Or install Python 3.12 manually from:"
+            echo "     https://www.python.org/downloads/"
+            exit 1
+        fi
+        echo " Opening installer — please click through and enter your admin password."
+        # -W waits for the installer to close before we continue
+        open -W "$PKG_PATH"
+        rm -f "$PKG_PATH"
+        if have_python_312; then
+            PYTHON_BIN="python3"
+        else
+            echo
+            echo " ERROR: Python 3.12 install was not detected after the installer closed."
+            echo " Please install Python 3.12 manually from:"
+            echo "     https://www.python.org/downloads/"
+            exit 1
+        fi
+    else
+        # Linux — no generic silent path, so point the user at their
+        # distro's package manager. Python 3.12 is usually one command.
+        echo " ERROR: Python 3.12+ is not installed."
+        echo
+        echo " Please install it for your distribution:"
+        echo "   Debian / Ubuntu:   sudo apt install python3.12 python3.12-venv"
+        echo "   Fedora / RHEL:     sudo dnf install python3.12"
+        echo "   Arch:              sudo pacman -S python"
+        echo
+        echo " Then re-run this file."
+        exit 1
+    fi
 fi
 
-PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-echo " [1/4] Python $PY_VER detected."
+PY_VER=$("$PYTHON_BIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')
+echo " [1/4] Python $PY_VER ready."
 
 # --- 3. Create / reuse a local virtualenv so we never touch system Python ---
 if [ ! -x ".venv/bin/python" ]; then
     echo " [2/4] Creating virtual environment in .venv/ ..."
-    python3 -m venv .venv
+    "$PYTHON_BIN" -m venv .venv
 else
     echo " [2/4] Using existing virtual environment."
 fi
